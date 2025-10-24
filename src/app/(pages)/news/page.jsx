@@ -1,4 +1,8 @@
 "use client";
+
+export const dynamic = "force-dynamic"; // ✅ keep this
+// ❌ remove "export const revalidate = 0;"
+
 import { useSearchParams } from "next/navigation";
 import FrontPage from "./FrontPage";
 import AdvertisingPage from "./AdvertisingPage";
@@ -7,7 +11,7 @@ import PageFlipper from "./PageFlipper";
 
 export default function NewsRouter() {
   const params = useSearchParams();
-  const view = params.get("view"); // ex: ?view=advertising
+  const view = params.get("view");
 
   let content;
   if (view === "advertising") content = <AdvertisingPage />;
@@ -16,10 +20,7 @@ export default function NewsRouter() {
 
   return (
     <main className="min-h-screen flex flex-col bg-[#f7f4ec] text-[#111] font-serif">
-      {/* Page Content */}
       <div className="flex-grow">{content}</div>
-
-      {/* Bottom Bar */}
       <footer className="border-t border-gray-300 py-6 mt-auto">
         <PageFlipper />
       </footer>
