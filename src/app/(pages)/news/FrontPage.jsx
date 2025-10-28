@@ -1,352 +1,316 @@
 "use client";
-import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc } from "firebase/firestore";
+import { useEffect, useState, useContext } from "react";
+import { collection, getDocs } from "firebase/firestore";
 import Link from "next/link";
 import { db, auth, provider } from "../../../../lib/firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { ThemeContext } from "../../layout";
+import SidebarMenu from "../../components/SidebarMenu";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function FrontPage() {
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const [articles, setArticles] = useState([]);
   const [user, setUser] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showNewsletterPrompt, setShowNewsletterPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [hovered, setHovered] = useState(null);
+  const [categoryArticles, setCategoryArticles] = useState([]);
 
-  // 🔥 Load Firestore articles + auth listener
   useEffect(() => {
-    async function loadArticles() {
+    async function load() {
       try {
-        const snapshot = await getDocs(collection(db, "dailyNews"));
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setArticles(data);
-      } catch (err) {
-        console.error("❌ Firestore Error:", err);
-        setError("Failed to load today's edition.");
+        const snap = await getDocs(collection(db, "dailyNews"));
+        setArticles(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      } catch {
+        setError("Failed to load today’s edition.");
       } finally {
         setLoading(false);
       }
     }
-
-    loadArticles();
-
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
+    load();
+    const unsub = onAuthStateChanged(auth, setUser);
+    return unsub;
   }, []);
 
-  // 🧠 Newsletter only after manual sign-in
-  async function handleSignIn() {
+  const handleAuth = async () =>
+    user ? (await signOut(auth), setUser(null)) : signInWithPopup(auth, provider);
+
+  async function fetchCategory(cat) {
     try {
-      await signInWithPopup(auth, provider);
-      setShowNewsletterPrompt(true); // 👈 show only after this action
+      const clean = cat.trim().toLowerCase();
+      const snap = await getDocs(collection(db, "dailyNews"));
+      const filtered = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((x) => x.category?.trim().toLowerCase() === clean);
+      setCategoryArticles(filtered.slice(0, 4));
     } catch (err) {
-      console.error("❌ Sign-in Error:", err);
-      alert("Sign-in failed. Please try again.");
+      console.error(err);
     }
   }
 
-  async function handleSignOut() {
-    try {
-      await signOut(auth);
-      setShowDropdown(false);
-      setUser(null);
-    } catch (err) {
-      console.error("❌ Sign-out Error:", err);
-    }
-  }
-
-  async function joinNewsletter() {
-    if (!user?.email) return;
-    try {
-      await addDoc(collection(db, "newsletter"), {
-        email: user.email,
-        joinedAt: new Date(),
-      });
-      alert("✅ You’re subscribed to GRN Daily updates!");
-      setShowNewsletterPrompt(false);
-    } catch (err) {
-      console.error("❌ Newsletter Error:", err);
-      alert("Error joining newsletter. Try again later.");
-    }
-  }
-
-  // 🧩 Loading / Error States
   if (loading)
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[#f7f4ec]">
-        <p className="text-gray-500 italic">Loading today’s edition...</p>
+      <main className="min-h-screen flex items-center justify-center bg-[#f7f4ec] dark:bg-[#0a0a0a]">
+        <p className="italic text-gray-500 dark:text-gray-300">Loading today’s edition...</p>
       </main>
     );
 
   if (error)
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[#f7f4ec]">
-        <p className="text-red-500 italic">{error}</p>
+      <main className="min-h-screen flex items-center justify-center bg-[#f7f4ec] dark:bg-[#0a0a0a]">
+        <p className="italic text-red-500">{error}</p>
       </main>
     );
 
-  if (!articles.length)
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-[#f7f4ec]">
-        <p className="text-gray-500 italic">No stories published yet.</p>
-      </main>
-    );
-
-  const col1 = articles[0];
-  const main = articles[1];
-  const col3 = articles[2];
-  const bottom = articles.slice(3, 5);
+  const [col1, mainStory, col3, ...rest] = articles;
+  const bottom = rest.slice(0, 2);
 
   return (
-    <main className="bg-[#f7f4ec] text-[#111] font-serif relative">
-      {/* 📰 HEADER */}
-      <header className="relative border-b border-transparent">
-        <div className="max-w-7xl mx-auto px-6 pt-10 pb-6 flex items-center justify-between">
-          {/* LEFT — TITLE + DATE */}
-          <div>
-            <h1 className="text-[76px] font-extrabold tracking-tight leading-none mb-2">
-              GRN <span className="text-[#008c5e]">Daily</span>
-            </h1>
-            <p className="text-[16px] italic text-gray-600">
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </p>
-          </div>
+    <main
+      className={`font-serif min-h-screen flex flex-col justify-between ${
+        theme === "dark" ? "bg-[#0a0a0a] text-[#f4f4f4]" : "bg-[#f7f4ec] text-[#111]"
+      } transition-colors`}
+    >
+      <SidebarMenu />
 
-          {/* RIGHT — NAVIGATION + ACCOUNT */}
-          <div className="flex items-center gap-8 relative">
-            <nav className="flex gap-8 text-[15px] font-medium text-gray-700">
-              <Link
-                href="/news?view=article"
-                className="hover:text-[#008c5e] hover:underline decoration-[#00a86b]/60 decoration-2 transition"
-              >
-                📰 News Catalogue
-              </Link>
+      {/* HEADER */}
+      <header className="text-center relative">
+        <div className="max-w-7xl mx-auto px-6 pt-12 pb-8 flex flex-col items-center gap-3">
+          <h1 className="text-[76px] font-extrabold leading-none">
+            <span className="dark:text-[#f5f5f5]">GRN</span>{" "}
+            <span className="text-[#00a86b]">Daily</span>
+          </h1>
 
-              <Link
-                href="/news?view=advertising"
-                className="hover:text-[#008c5e] hover:underline decoration-[#00a86b]/60 decoration-2 transition"
-              >
-                💼 Sponsor / Submit
-              </Link>
-            </nav>
+          <p className="italic text-gray-600 dark:text-gray-400 mt-2">
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
 
-            {/* 👤 ACCOUNT BUTTON */}
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="px-4 py-2 bg-[#111] text-white rounded-md text-sm hover:bg-[#333] transition"
-              >
-                {user ? "Account" : "Sign In"}
-              </button>
-
-              {showDropdown && (
-                <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg">
-                  {user ? (
-                    <>
-                      <p className="text-gray-800 text-sm px-4 py-2 border-b border-gray-100">
-                        {user.displayName || "User"}
-                      </p>
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                      >
-                        Sign Out
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleSignIn}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                    >
-                      Sign In with Google
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ✨ Decorative line */}
-        <div className="flex justify-center mb-8">
-          <div className="h-[2px] w-[85%] bg-gradient-to-r from-transparent via-gray-300/40 to-transparent" />
-        </div>
-
-        {/* 🧭 CATEGORY NAVIGATION */}
-        <nav className="flex justify-center gap-10 text-[15px] font-medium text-gray-800 mb-6">
-          {["Health", "Law’s", "General", "Business", "Politics", "Awareness"].map((tab) => (
-            <Link
-              key={tab}
-              href={`/category/${tab.toLowerCase().replace("’", "")}`}
-              className="hover:text-[#008c5e] hover:underline decoration-[#00a86b]/60 decoration-2 transition"
-            >
-              {tab}
+          <nav className="flex gap-10 text-[15px] font-medium mt-6 text-gray-700 dark:text-gray-300">
+            <Link href="/news?view=article" className="hover:text-[#00a86b] hover:underline">
+              News Catalogue
             </Link>
+            <Link href="/news?view=advertising" className="hover:text-[#00a86b] hover:underline">
+              Sponsor / Submit
+            </Link>
+          </nav>
+        </div>
+
+        {/* THEME + ACCOUNT */}
+        <div className="absolute top-6 right-8 flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="px-3 py-2 border rounded-md text-sm hover:bg-gray-200 dark:hover:bg-[#1a1a1a]"
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowDropdown((v) => !v)}
+              className="px-4 py-2 bg-[#111] text-white rounded-md text-sm hover:bg-[#333]"
+            >
+              {user ? "Account" : "Sign In"}
+            </button>
+            {showDropdown && (
+              <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-[#1a1a1a] border rounded-lg shadow">
+                {user ? (
+                  <>
+                    <p className="px-4 py-2 text-sm border-b">{user.displayName || "User"}</p>
+                    <button
+                      onClick={handleAuth}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#222]"
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleAuth}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#222]"
+                  >
+                    Sign In with Google
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-center mb-6 mt-4">
+          <div className="h-[2px] w-[85%] bg-gradient-to-r from-transparent via-gray-300/40 to-transparent dark:via-gray-700/40" />
+        </div>
+
+        {/* CATEGORY NAV */}
+        <nav className="flex justify-center gap-12 text-[15px] font-medium mb-6 relative">
+          {["Health", "Law", "General", "Business", "Politics", "Awareness"].map((tab) => (
+            <div
+              key={tab}
+              onMouseEnter={() => {
+                setHovered(tab);
+                fetchCategory(tab);
+              }}
+              onMouseLeave={() => setHovered(null)}
+              className="relative group pb-1 cursor-pointer"
+            >
+              <Link
+                href={`/category/${tab.toLowerCase()}`}
+                className="group-hover:text-[#00a86b] transition-colors"
+              >
+                {tab}
+              </Link>
+              <span className="absolute left-0 bottom-0 w-0 h-[2px] bg-[#00a86b] group-hover:w-full transition-all" />
+              <AnimatePresence>
+                {hovered === tab && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="absolute left-1/2 -translate-x-1/2 top-8 w-[750px] bg-[#fffef9] dark:bg-[#121212] shadow-lg border rounded-lg p-4 z-10"
+                  >
+                    <div className="grid grid-cols-4 gap-4">
+                      {categoryArticles.length ? (
+                        categoryArticles.map((a) => (
+                          <Link key={a.id} href={`/article/${a.id}`}>
+                            {a.imageUrl && (
+                              <img
+                                src={a.imageUrl}
+                                alt={a.title}
+                                className="w-full h-28 object-cover rounded border group-hover:opacity-80"
+                              />
+                            )}
+                            <p className="text-[13px] mt-2 font-medium group-hover:text-[#00a86b] line-clamp-2">
+                              {a.title}
+                            </p>
+                          </Link>
+                        ))
+                      ) : (
+                        <p className="col-span-4 text-center text-sm text-gray-500">
+                          No stories in this category yet.
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           ))}
         </nav>
 
-        {/* thin line under categories */}
         <div className="flex justify-center mb-10">
-          <div className="h-[1px] w-[85%] bg-gradient-to-r from-transparent via-gray-300/30 to-transparent" />
+          <div className="h-[1px] w-[85%] bg-gradient-to-r from-transparent via-gray-300/30 to-transparent dark:via-gray-700/30" />
         </div>
       </header>
 
-      {/* 💌 Newsletter Popup */}
-      {showNewsletterPrompt && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-8 w-[90%] max-w-md text-center">
-            <h2 className="text-2xl font-bold mb-2">Join the GRN Daily Newsletter</h2>
-            <p className="text-gray-600 mb-6">
-              Want to get an email whenever new stories are published?
-            </p>
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={joinNewsletter}
-                className="bg-[#008c5e] text-white px-6 py-2 rounded-lg hover:bg-[#00a86b] transition"
-              >
-                Yes, Sign Me Up
-              </button>
-              <button
-                onClick={() => setShowNewsletterPrompt(false)}
-                className="border border-gray-300 px-6 py-2 rounded-lg hover:bg-gray-100 transition"
-              >
-                No, Thanks
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-   {/* 🗞️ MAIN CONTENT */}
-<section className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-10 mb-12">
-  {col1 && (
-    <Link href={`/article/${col1.id}`} className="group">
-      <article className="border-t border-gray-300 pt-3 cursor-pointer transition hover:opacity-80">
-        {col1.imageUrl && (
-          <img
-            src={col1.imageUrl}
-            alt={col1.title}
-            className="w-full h-48 object-cover mb-3 border border-gray-200 rounded"
-          />
+      {/* MAIN STORIES */}
+      <section className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-10 mb-12">
+        {[col1, mainStory, col3].map(
+          (item, i) =>
+            item && (
+              <Link href={`/article/${item.id}`} key={i}>
+                <article className="border-t border-gray-300 pt-3 hover:opacity-80">
+                  {item.imageUrl && (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className={`w-full ${
+                        i === 1 ? "h-[320px]" : "h-48"
+                      } object-cover mb-3 border rounded`}
+                    />
+                  )}
+                  <h2
+                    className={`${
+                      i === 1 ? "text-3xl font-extrabold" : "text-xl font-bold"
+                    } mb-2 hover:text-[#00a86b]`}
+                  >
+                    {item.title}
+                  </h2>
+                  <p className="text-sm italic text-gray-600 dark:text-gray-400 mb-2">
+                    {item.author ? `By ${item.author}` : "By GRN Staff"}
+                  </p>
+                  <p className="text-sm text-gray-800 dark:text-gray-300 leading-snug text-justify">
+                    {item.body?.slice(0, i === 1 ? 700 : 350)}...
+                  </p>
+                </article>
+              </Link>
+            )
         )}
-        <h2 className="text-xl font-bold leading-snug mb-2 group-hover:text-[#008c5e] transition">
-          {col1.title}
-        </h2>
-        <p className="text-sm italic text-gray-600 mb-2">
-          {col1.author ? `By ${col1.author}` : "By GRN Staff"}
-        </p>
-        <p className="text-sm text-gray-800 leading-snug text-justify">
-          {col1.body?.slice(0, 400)}...
-        </p>
-      </article>
-    </Link>
-  )}
+      </section>
 
-  {main && (
-    <Link href={`/article/${main.id}`} className="group">
-      <article className="border-t border-gray-300 pt-3 cursor-pointer transition hover:opacity-80">
-        {main.imageUrl && (
-          <img
-            src={main.imageUrl}
-            alt={main.title}
-            className="w-full h-[320px] object-cover mb-4 border border-gray-200 rounded"
-          />
-        )}
-        <h2 className="text-3xl font-extrabold leading-tight mb-3 group-hover:text-[#008c5e] transition">
-          {main.title}
-        </h2>
-        <p className="text-sm italic text-gray-600 mb-2">
-          {main.author ? `By ${main.author}` : "By GRN Staff"}
-        </p>
-        <p className="text-[15px] text-gray-900 leading-relaxed text-justify">
-          {main.body?.slice(0, 700)}...
-        </p>
-      </article>
-    </Link>
-  )}
-
-  {col3 && (
-    <Link href={`/article/${col3.id}`} className="group">
-      <article className="border-t border-gray-300 pt-3 cursor-pointer transition hover:opacity-80">
-        {col3.imageUrl && (
-          <img
-            src={col3.imageUrl}
-            alt={col3.title}
-            className="w-full h-36 object-cover mb-3 border border-gray-200 rounded"
-          />
-        )}
-        <h2 className="text-lg font-semibold leading-snug mb-2 group-hover:text-[#008c5e] transition">
-          {col3.title}
-        </h2>
-        <p className="text-sm italic text-gray-600 mb-2">
-          {col3.author ? `By ${col3.author}` : "By GRN Staff"}
-        </p>
-        <p className="text-sm text-gray-800 leading-snug text-justify">
-          {col3.body?.slice(0, 350)}...
-        </p>
-      </article>
-    </Link>
-  )}
-</section>
-
-{/* 🧾 BOTTOM ROW */}
-<section className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-10 pb-12">
-  {bottom.map((story) => (
-    <Link href={`/article/${story.id}`} key={story.id} className="group">
-      <article className="border-t border-gray-300 pt-3 cursor-pointer transition hover:opacity-80">
-        {story.imageUrl && (
-          <img
-            src={story.imageUrl}
-            alt={story.title}
-            className="w-full h-40 object-cover mb-3 border border-gray-200 rounded"
-          />
-        )}
-        <h3 className="text-xl font-semibold mb-2 group-hover:text-[#008c5e] transition">
-          {story.title}
-        </h3>
-        <p className="text-xs italic text-gray-600 mb-2">
-          {story.author ? `By ${story.author}` : "By GRN Staff"}
-        </p>
-        <p className="text-sm text-gray-700 leading-snug text-justify">
-          {story.body?.slice(0, 300)}...
-        </p>
-      </article>
-    </Link>
-  ))}
-</section>
-
-      {/* 🧾 BOTTOM ROW */}
+      {/* LOWER ARTICLES */}
       <section className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-10 pb-12">
         {bottom.map((story) => (
-          <article key={story.id} className="border-t border-gray-300 pt-3">
-            {story.imageUrl && (
-              <img
-                src={story.imageUrl}
-                alt={story.title}
-                className="w-full h-40 object-cover mb-3 border border-gray-200 rounded"
-              />
-            )}
-            <h3 className="text-xl font-semibold mb-2">{story.title}</h3>
-            <p className="text-xs italic text-gray-600 mb-2">
-              {story.author ? `By ${story.author}` : "By GRN Staff"}
-            </p>
-            <p className="text-sm text-gray-700 leading-snug text-justify">
-              {story.body?.slice(0, 300)}...
-            </p>
-          </article>
+          <Link href={`/article/${story.id}`} key={story.id}>
+            <article className="border-t border-gray-300 pt-3 hover:opacity-80">
+              {story.imageUrl && (
+                <img
+                  src={story.imageUrl}
+                  alt={story.title}
+                  className="w-full h-40 object-cover mb-3 border rounded"
+                />
+              )}
+              <h3 className="text-xl font-semibold mb-2 hover:text-[#00a86b]">{story.title}</h3>
+              <p className="text-xs italic text-gray-600 dark:text-gray-400 mb-2">
+                {story.author ? `By ${story.author}` : "By GRN Staff"}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug text-justify">
+                {story.body?.slice(0, 300)}...
+              </p>
+            </article>
+          </Link>
         ))}
       </section>
 
-      {/* ⚖️ FOOTER */}
-      <footer className="text-center py-6 text-gray-500 text-sm border-t border-gray-200">
-        © {new Date().getFullYear()} Green Rush Nation — All Rights Reserved.
+      {/* FOOTER */}
+      <footer className="bg-[#0a0a0a] text-white border-t border-[#00a86b]/20 mt-20">
+        <div className="max-w-7xl mx-auto px-6 py-16 text-center">
+          <h2 className="text-4xl font-extrabold mb-6">
+            GREEN RUSH <span className="text-[#00a86b]">NATION</span>
+          </h2>
+          <div className="flex justify-center gap-6 mb-10">
+            {[
+              ["Instagram.pdf", "Instagram", "https://instagram.com/greenrushnation"],
+              ["Tiktok.png", "TikTok", "https://tiktok.com/@greenrushnation"],
+              ["Youtube.jpg", "YouTube", "https://youtube.com/@greenrushnation"],
+              ["X.jpg", "X", "https://x.com/greenrushnation"],
+            ].map(([icon, alt, link]) => (
+              <a key={alt} href={link} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={`/icons/${icon}`}
+                  alt={alt}
+                  className="w-8 h-8 rounded-full border border-[#00a86b]/40 bg-black p-1 hover:bg-[#00a86b]/20 hover:scale-110 transition"
+                />
+              </a>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-6 mb-8">
+            {[
+              ["About Green Rush Nation", "/about"],
+              ["Subscribe", "/subscribe"],
+              ["Sponsorship & Advertising", "/advertising"],
+              ["Privacy Policy", "/privacy"],
+            ].map(([text, href]) => (
+              <Link
+                key={text}
+                href={href}
+                className="px-5 py-2 border border-[#00a86b]/40 rounded-md hover:bg-[#00a86b]/10 hover:text-[#00ff9d]"
+              >
+                {text}
+              </Link>
+            ))}
+          </div>
+
+          <p className="text-xs text-gray-500">
+            All the cannabis news you need, all in one place. <br />
+            © {new Date().getFullYear()} Green Rush Nation Media LLC — All Rights Reserved.
+          </p>
+        </div>
       </footer>
     </main>
   );

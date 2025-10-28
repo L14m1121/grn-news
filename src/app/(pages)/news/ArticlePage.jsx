@@ -11,10 +11,11 @@ export default function ArticlePage() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("All");
 
+  // ✅ Load articles on mount
   useEffect(() => {
     async function loadArticles() {
       try {
-        // 🟢 Load both current and archived articles
+        // Load both collections
         const [currentSnap, archivedSnap] = await Promise.all([
           getDocs(collection(db, "dailyNews")),
           getDocs(collection(db, "archivedNews")),
@@ -36,10 +37,8 @@ export default function ArticlePage() {
 
         // Merge and sort newest first
         const merged = [...current, ...archived].sort((a, b) => {
-          const dateA =
-            a.createdAt?.seconds || a.archivedAt?.seconds || 0;
-          const dateB =
-            b.createdAt?.seconds || b.archivedAt?.seconds || 0;
+          const dateA = a.createdAt?.seconds || a.archivedAt?.seconds || 0;
+          const dateB = b.createdAt?.seconds || b.archivedAt?.seconds || 0;
           return dateB - dateA;
         });
 
@@ -54,6 +53,13 @@ export default function ArticlePage() {
     loadArticles();
   }, []);
 
+  // ✅ Store last page path separately
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("lastPage", window.location.pathname);
+    }
+  }, []);
+
   if (loading)
     return (
       <main className="min-h-screen flex justify-center items-center text-gray-500 font-serif bg-[#f9f7f4]">
@@ -61,22 +67,22 @@ export default function ArticlePage() {
       </main>
     );
 
-const categories = [
-  "All",
-  "health",
-  "laws",
-  "general",
-  "business",
-  "politics",
-  "awareness",
-];
-
+  const categories = [
+    "All",
+    "health",
+    "laws",
+    "general",
+    "business",
+    "politics",
+    "awareness",
+  ];
 
   const filteredArticles =
     selectedCategory === "All"
       ? articles
       : articles.filter(
-          (a) => a.category?.toLowerCase() === selectedCategory.toLowerCase()
+          (a) =>
+            a.category?.toLowerCase() === selectedCategory.toLowerCase()
         );
 
   // 📰 Catalogue View
@@ -138,8 +144,7 @@ const categories = [
                 {article.title}
               </h2>
               <p className="text-xs italic text-gray-600 mb-2">
-                {article.author ? `By ${article.author}` : "By GRN Staff"}{" "}
-                •{" "}
+                {article.author ? `By ${article.author}` : "By GRN Staff"} •{" "}
                 {article.status === "archived" ? (
                   <span className="text-gray-500 italic">Archived</span>
                 ) : (
@@ -191,8 +196,7 @@ const categories = [
         )}
 
         <p className="text-sm text-gray-500 mb-6 italic">
-          {selected.author ? `By ${selected.author}` : "By GRN Staff"}{" "}
-          •{" "}
+          {selected.author ? `By ${selected.author}` : "By GRN Staff"} •{" "}
           {selected.status === "archived" ? (
             <span className="text-gray-500 italic">Archived Article</span>
           ) : (

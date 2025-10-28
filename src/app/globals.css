@@ -1,26 +1,85 @@
+/* ✅ Must be first */
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Newsreader:wght@400;700&display=swap');
+
+/* ✅ Tailwind import always next */
 @import "tailwindcss";
 
+/* 📰 Newspaper Theme Variables */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f4ec;
+  --foreground: #111111;
+  --accent: #008c5e;
+  --font-serif: 'Libre Baskerville', serif;
+  --font-heading: 'Newsreader', serif;
 }
 
+/* ✅ Optional @theme layer (comes AFTER imports) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
+  --font-heading: var(--font-heading);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* 🌙 Improved Dark Theme Override */
+[data-theme="dark"] {
+  --background: #121212;        /* Softer, readable dark background */
+  --foreground: #e5e5e5;        /* Light grey text for high contrast */
+}
+
+/* 🧱 Base styling */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-serif);
+  transition: background 0.3s, color 0.3s;
+}
+
+/* Make sure text is never too dark or too light in dark mode */
+[data-theme="dark"] p,
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] a,
+[data-theme="dark"] span {
+  color: #e8e8e8;
+}
+
+/* Slight off-black for footer contrast */
+[data-theme="dark"] footer {
+  background-color: #0e0e0e;
+  border-top: 1px solid rgba(0, 255, 157, 0.2);
+}
+
+/* 🪶 Headings */
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* 🦶 Footer */
+footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  width: 100%;
+  margin-top: auto;
+}
+
+/* 🌘 Dark mode body and html background alignment */
+html[data-theme="dark"],
+[data-theme="dark"] body {
+  background-color: #0a0a0a;
+  color: #f1f1f1;
 }
