@@ -1,28 +1,30 @@
 "use client";
 
-export const dynamic = "force-dynamic"; // ✅ keep this
-// ❌ remove "export const revalidate = 0;"
-
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import FrontPage from "./FrontPage";
 import AdvertisingPage from "./AdvertisingPage";
 import ArticlePage from "./ArticlePage";
 import PageFlipper from "./PageFlipper";
 
-export default function NewsRouter() {
+// ✅ Ensure runtime is dynamic and not prerendered
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
+function NewsRouterInner() {
   const params = useSearchParams();
   const view = params.get("view");
 
-  let content;
-  if (view === "advertising") content = <AdvertisingPage />;
-  else if (view === "article") content = <ArticlePage />;
-  else content = <FrontPage />;
+  if (view === "advertising") return <AdvertisingPage />;
+  if (view === "article") return <ArticlePage />;
+  return <FrontPage />;
+}
 
+export default function NewsPage() {
   return (
-    <main className="min-h-screen flex flex-col bg-[#f7f4ec] text-[#111] font-serif">
-      <div className="flex-grow">{content}</div>
-      <footer className="border-t border-gray-300 py-6 mt-auto">
-      </footer>
-    </main>
+    <Suspense fallback={<p className="text-center mt-20 text-gray-500">Loading...</p>}>
+      <NewsRouterInner />
+    </Suspense>
   );
 }
